@@ -14,7 +14,7 @@ export class MvpServerlessTypescriptStack extends Stack {
 
     // SINGLE TABLE DESIGN: Use partition key (PK) and sort key (SK)
     const table = new dynamodb.Table(this, "AppDataTable", {
-      tableName: "todoTable",
+      tableName: "workoutTable",
       partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
       removalPolicy: RemovalPolicy.DESTROY,
@@ -24,13 +24,13 @@ export class MvpServerlessTypescriptStack extends Stack {
       runtime: lambda.Runtime.NODEJS_18_X,
       code: lambda.Code.fromAsset(path.join(__dirname, "../src/dist")),
       handler: "index.handler",
-      functionName: "todo-function",
+      functionName: "workout-function",
     });
 
     table.grantReadWriteData(fn);
 
     const httpApi = new apigwv2.HttpApi(this, "CrudHttpApi", {
-      apiName: "todo-api",
+      apiName: "workoutApi",
     });
 
     const lambdaIntegration = new HttpLambdaIntegration("CrudIntegration", fn);

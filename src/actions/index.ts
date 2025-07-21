@@ -1,9 +1,11 @@
 // src/actions/index.ts
 
-import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import { StatusCodes, getReasonPhrase } from 'http-status-codes';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { v4 as uuidv4 } from 'uuid';
+import { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { StatusCodes, getReasonPhrase } from "http-status-codes";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { v4 as uuidv4 } from "uuid";
+import bcrypt from "bcryptjs";
+
 import {
   DynamoDBDocumentClient,
   GetCommand,
@@ -11,23 +13,68 @@ import {
   PutCommand,
   DeleteCommand,
   UpdateCommand,
-} from '@aws-sdk/lib-dynamodb';
-import { stat } from 'fs';
+} from "@aws-sdk/lib-dynamodb";
+import { stat } from "fs";
 
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 type RouteHandler = (event: any, id?: string) => Promise<any>;
-const tableName = 'todoTable';
+const tableName = "workoutTable";
 
 // Route handler map
 const routeHandlers: Record<string, RouteHandler> = {
-  'GET /items': async () => {
+  "GET /users": async () => {
+    const scanResult = await client.send(
+      new ScanCommand({ TableName: tableName })
+    );
+    return scanResult.Items ?? [];
+  },
+  "POST /users": async (event) => {
+    if (!event.body) throw new Error("Missing request body");
+    const tableName = "workoutTable";
+    const timestamp = new Date().toISOString();
+    const inputData = JSON.parse(event.body);
+
+    const {
+      username,
+      password,
+      emailAddress,
+      createdAt: ignore1,
+      PK: ignore2,
+      SK: ignore3,
+      ...rest
+    } = inputData;
+
+    const newUser = {
+      PK: `USER#${username}`,
+      SK: `USER#${username}`,
+      emailAddress: emailAddress,
+      createdAt: timestamp,
+      password: await bcrypt.hashSync(password, 10),
+    };
+
+    await client.send(
+      new PutCommand({
+        TableName: tableName,
+        Item: newUser,
+      })
+    );
+    return {
+      statusCode: 201,
+      body: JSON.stringify({
+        message: "Created new user",
+        item: newUser,
+      }),
+    };
+  },
+
+  "GET /items": async () => {
     const scanResult = await client.send(
       new ScanCommand({ TableName: tableName })
     );
     return scanResult.Items ?? [];
   },
 
-  'GET /items/:id': async (_event, id) => {
+  "GET /items/:id": async (_event, id) => {
     const getResult = await client.send(
       new GetCommand({
         TableName: tableName,
@@ -40,10 +87,10 @@ const routeHandlers: Record<string, RouteHandler> = {
     return getResult.Item ?? {};
   },
 
-  'POST /items': async (event) => {
-    if (!event.body) throw new Error('Missing request body');
+  "POST /items": async (event) => {
+    if (!event.body) throw new Error("Missing request body");
 
-    const tableName = 'todoTable';
+    const tableName = "todoTable";
     const timestamp = new Date().toISOString();
     const inputData = JSON.parse(event.body);
 
@@ -65,7 +112,7 @@ const routeHandlers: Record<string, RouteHandler> = {
       PK: `TODO#${generatedId}`,
       SK: `USER#${generatedId}`,
       priority: priority ?? 1,
-      description: description ?? '',
+      description: description ?? "",
       createdAt: timestamp,
       editedAt: timestamp,
       data: { ...rest, ...(data ?? {}) },
@@ -81,17 +128,17 @@ const routeHandlers: Record<string, RouteHandler> = {
     return {
       statusCode: 201,
       body: JSON.stringify({
-        message: 'Created new item',
+        message: "Created new item",
         generatedId,
         item: newItem,
       }),
     };
   },
 
-  'PATCH /items/:id': async (event, id) => {
-    if (!event.body) throw new Error('Missing request body');
+  "PATCH /items/:id": async (event, id) => {
+    if (!event.body) throw new Error("Missing request body");
 
-    const tableName = 'todoTable';
+    const tableName = "todoTable";
     const timestamp = new Date().toISOString();
     const updateData = JSON.parse(event.body);
 
@@ -134,7 +181,7 @@ const routeHandlers: Record<string, RouteHandler> = {
       PK,
       SK,
       priority: priority ?? 1,
-      description: description ?? '',
+      description: description ?? "",
       createdAt,
       editedAt: timestamp,
       data: { ...rest, ...(data ?? {}) },
@@ -157,7 +204,7 @@ const routeHandlers: Record<string, RouteHandler> = {
     };
   },
 
-  'DELETE /items/:id': async (_event, id) => {
+  "DELETE /items/:id": async (_event, id) => {
     await client.send(
       new DeleteCommand({
         TableName: tableName,
@@ -174,11 +221,11 @@ const routeHandlers: Record<string, RouteHandler> = {
 // Pattern matcher
 const matchRoute = (method: string, path: string) => {
   for (const key in routeHandlers) {
-    const [routeMethod, routePath] = key.split(' ');
+    const [routeMethod, routePath] = key.split(" ");
     if (routeMethod !== method) continue;
 
     const match = path.match(
-      new RegExp(`^${routePath.replace(':id', '([^/]+)')}$`)
+      new RegExp(`^${routePath.replace(":id", "([^/]+)")}$`)
     );
     if (match) {
       const id = match[1];
@@ -190,7 +237,7 @@ const matchRoute = (method: string, path: string) => {
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   let statusCode = StatusCodes.OK;
-  let body: string | object = '';
+  let body: string | object = "";
 
   try {
     const method = event.requestContext.http.method;
@@ -207,7 +254,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   return {
     statusCode,
-    headers: { 'Content-Type': 'application/json' },
-    body: typeof body === 'string' ? body : JSON.stringify(body),
+    headers: { "Content-Type": "application/json" },
+    body: typeof body === "string" ? body : JSON.stringify(body),
   };
 };
