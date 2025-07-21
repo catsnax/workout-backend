@@ -4,8 +4,12 @@ import { Construct } from "constructs";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
-import { HttpMethod } from "aws-cdk-lib/aws-apigatewayv2";
-import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
+import {
+  HttpApi,
+  CorsHttpMethod,
+  HttpMethod,
+} from "@aws-cdk/aws-apigatewayv2-alpha";
 import path from "path";
 
 export class MvpServerlessTypescriptStack extends Stack {
@@ -29,8 +33,19 @@ export class MvpServerlessTypescriptStack extends Stack {
 
     table.grantReadWriteData(fn);
 
-    const httpApi = new apigwv2.HttpApi(this, "CrudHttpApi", {
+    const httpApi = new HttpApi(this, "CrudHttpApi", {
       apiName: "workoutApi",
+      corsPreflight: {
+        allowHeaders: ["Content-Type"],
+        allowMethods: [
+          CorsHttpMethod.GET,
+          CorsHttpMethod.POST,
+          CorsHttpMethod.PATCH,
+          CorsHttpMethod.DELETE,
+          CorsHttpMethod.OPTIONS,
+        ],
+        allowOrigins: ["http://localhost:5173"],
+      },
     });
 
     const lambdaIntegration = new HttpLambdaIntegration("CrudIntegration", fn);

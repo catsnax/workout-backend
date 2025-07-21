@@ -60,6 +60,11 @@ const routeHandlers: Record<string, RouteHandler> = {
     );
     return {
       statusCode: 201,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+      },
       body: JSON.stringify({
         message: "Created new user",
         item: newUser,
