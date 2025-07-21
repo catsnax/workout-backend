@@ -2,7 +2,7 @@
 
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { StatusCodes, getReasonPhrase } from "http-status-codes";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 
@@ -68,6 +68,53 @@ const routeHandlers: Record<string, RouteHandler> = {
       body: JSON.stringify({
         message: "Created new user",
         item: newUser,
+      }),
+    };
+  },
+
+  "POST /login": async (event) => {
+    if (!event.body) throw new Error("Missing request body");
+    const tableName = "workoutTable";
+    const inputData = JSON.parse(event.body);
+
+    const { username, password } = inputData;
+
+    const { Item } = await client.send(
+      new GetItemCommand({
+        TableName: tableName,
+        Key: {
+          PK: { S: `USER#${username}` },
+          SK: { S: `USER#${username}` },
+        },
+      })
+    );
+
+    if (!Item) {
+      return {
+        statusCode: StatusCodes.NOT_FOUND,
+        body: JSON.stringify({ message: "User not found" }),
+      };
+    }
+
+    const storedHash = Item?.password?.S;
+
+    if (!storedHash) {
+      throw new Error("Password hash is missing");
+    }
+
+    const isMatch = await bcrypt.compare(password, storedHash);
+
+    if (!isMatch) {
+      return {
+        statusCode: StatusCodes.UNAUTHORIZED,
+        body: JSON.stringify({ message: "Invalid credentials" }),
+      };
+    }
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        message: "Login successful",
       }),
     };
   },
