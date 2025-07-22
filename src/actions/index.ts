@@ -138,13 +138,14 @@ const routeHandlers: Record<string, RouteHandler> = {
       SK: ignore1,
       targetDay,
       location,
+      date,
       createdAt: ignore2,
       ...rest
     } = inputData;
 
     const newWorkout = {
       PK,
-      SK: `WORKOUT#${timestamp}`,
+      SK: `WORKOUT#${date}`,
       targetDay,
       location,
       createdAt: timestamp,
