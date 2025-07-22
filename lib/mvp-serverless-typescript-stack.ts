@@ -45,6 +45,7 @@ export class MvpServerlessTypescriptStack extends Stack {
           CorsHttpMethod.OPTIONS,
         ],
         allowOrigins: ["http://localhost:5173"],
+        allowCredentials: true,
       },
     });
 
