@@ -2,7 +2,11 @@
 
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { StatusCodes, getReasonPhrase } from "http-status-codes";
-import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBClient,
+  GetItemCommand,
+  QueryCommand,
+} from "@aws-sdk/client-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 
@@ -127,6 +131,39 @@ const routeHandlers: Record<string, RouteHandler> = {
     };
   },
 
+  "GET /workouts": async (event) => {
+    const pk = event.queryStringParameters?.pk;
+
+    if (!pk) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Missing 'pk' query parameter" }),
+      };
+    }
+
+    const getResult = await client.send(
+      new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+        ExpressionAttributeValues: {
+          ":pk": { S: pk },
+          ":skPrefix": { S: "WORKOUT#" },
+        },
+      })
+    );
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "http://localhost:5173",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Credentials": "true",
+      },
+      body: JSON.stringify(getResult.Items ?? []),
+    };
+  },
+
   "POST /workouts": async (event) => {
     if (!event.body) throw new Error("Missing request body");
     const tableName = "workoutTable";
@@ -149,6 +186,7 @@ const routeHandlers: Record<string, RouteHandler> = {
       targetDay,
       location,
       createdAt: timestamp,
+      date,
     };
 
     await client.send(
