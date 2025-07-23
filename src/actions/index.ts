@@ -209,6 +209,50 @@ const routeHandlers: Record<string, RouteHandler> = {
     };
   },
 
+  "POST /exercises": async (event) => {
+    if (!event.body) throw new Error("Missing request body");
+    const tableName = "workoutTable";
+    const timestamp = new Date().toISOString();
+    const inputData = JSON.parse(event.body);
+    const {
+      PK,
+      SK: ignore1,
+      exerciseName,
+      numberOfSets,
+      weight,
+      unitMeasurement,
+      createdAt: ignore2,
+      ...rest
+    } = inputData;
+    const newExercise = {
+      PK,
+      SK: `EXERCISE#${exerciseName}#${timestamp}`,
+      exerciseName,
+      numberOfSets,
+      weight,
+      unitMeasurement,
+      createdAt: timestamp,
+    };
+    await client.send(
+      new PutCommand({
+        TableName: tableName,
+        Item: newExercise,
+      })
+    );
+    return {
+      statusCode: 201,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+      },
+      body: JSON.stringify({
+        message: "Created new exercise",
+        exercise: newExercise,
+      }),
+    };
+  },
+
   "GET /items": async () => {
     const scanResult = await client.send(
       new ScanCommand({ TableName: tableName })

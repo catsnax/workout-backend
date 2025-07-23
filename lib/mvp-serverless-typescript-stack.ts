@@ -81,6 +81,12 @@ export class MvpServerlessTypescriptStack extends Stack {
       integration: lambdaIntegration,
     });
 
+    httpApi.addRoutes({
+      path: "/exercises",
+      methods: [HttpMethod.GET, HttpMethod.POST],
+      integration: lambdaIntegration,
+    });
+
     new CfnOutput(this, "ApiUrl", {
       exportName: "APIGatewayEndpoint",
       value: httpApi.apiEndpoint,
