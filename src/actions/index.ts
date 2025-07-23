@@ -286,6 +286,39 @@ const routeHandlers: Record<string, RouteHandler> = {
     };
   },
 
+  "GET /sets": async (event) => {
+    const pk = event.queryStringParameters?.pk;
+
+    if (!pk) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Missing 'pk' query parameter" }),
+      };
+    }
+
+    const getResult = await client.send(
+      new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+        ExpressionAttributeValues: {
+          ":pk": { S: pk },
+          ":skPrefix": { S: "SET#" },
+        },
+      })
+    );
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "http://localhost:5173",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Credentials": "true",
+      },
+      body: JSON.stringify(getResult.Items ?? []),
+    };
+  },
+
   "POST /sets": async (event) => {
     if (!event.body) throw new Error("Missing request body");
     const tableName = "workoutTable";
@@ -322,6 +355,78 @@ const routeHandlers: Record<string, RouteHandler> = {
       body: JSON.stringify({
         message: "Created new set",
         set: newSet,
+      }),
+    };
+  },
+
+  "PATCH /sets": async (event) => {
+    const tableName = "workoutTable";
+    const timestamp = new Date().toISOString();
+
+    const patchData = JSON.parse(event.body);
+    const pk = patchData?.PK;
+    const sk = patchData?.SK;
+    if (!pk && !sk) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Missing 'pk' or 'sk' query parameter" }),
+      };
+    }
+
+    const existing = await client.send(
+      new GetCommand({
+        TableName: tableName,
+        Key: {
+          PK: `${pk}`,
+          SK: `${sk}`,
+        },
+      })
+    );
+
+    if (!existing.Item) {
+      return {
+        statusCode: StatusCodes.NOT_FOUND,
+        body: JSON.stringify({
+          message: `Not Found item ${pk} with sort key ${sk}`,
+        }),
+      };
+    }
+
+    const { PK, SK, createdAt } = existing.Item;
+
+    // Step 2: Extract known and custom fields
+    const {
+      numberOfReps,
+      weight,
+      createdAt: ignore1,
+      PK: ignore2,
+      SK: ignore3,
+      ...rest
+    } = patchData;
+
+    // Step 3: Build final updated item
+    const updatedItem = {
+      PK,
+      SK,
+      numberOfReps,
+      weight,
+      editedAt: timestamp,
+      createdAt,
+    };
+
+    // Step 4: Put updated item back
+    await client.send(
+      new PutCommand({
+        TableName: tableName,
+        Item: updatedItem,
+      })
+    );
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        message: `Updated item ${pk} with sort key ${sk}`,
+        updated: updatedItem,
       }),
     };
   },
