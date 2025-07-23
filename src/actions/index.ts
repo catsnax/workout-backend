@@ -164,6 +164,39 @@ const routeHandlers: Record<string, RouteHandler> = {
     };
   },
 
+  "GET /exercises": async (event) => {
+    const pk = event.queryStringParameters?.pk;
+
+    if (!pk) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Missing 'pk' query parameter" }),
+      };
+    }
+
+    const getResult = await client.send(
+      new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+        ExpressionAttributeValues: {
+          ":pk": { S: pk },
+          ":skPrefix": { S: "EXERCISE#" },
+        },
+      })
+    );
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "http://localhost:5173",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Credentials": "true",
+      },
+      body: JSON.stringify(getResult.Items ?? []),
+    };
+  },
+
   "POST /workouts": async (event) => {
     if (!event.body) throw new Error("Missing request body");
     const tableName = "workoutTable";
@@ -249,6 +282,46 @@ const routeHandlers: Record<string, RouteHandler> = {
       body: JSON.stringify({
         message: "Created new exercise",
         exercise: newExercise,
+      }),
+    };
+  },
+
+  "POST /sets": async (event) => {
+    if (!event.body) throw new Error("Missing request body");
+    const tableName = "workoutTable";
+    const timestamp = new Date().toISOString();
+    const inputData = JSON.parse(event.body);
+    const {
+      PK,
+      SK,
+      numberOfReps,
+      weight,
+      createdAt: ignore2,
+      ...rest
+    } = inputData;
+    const newSet = {
+      PK,
+      SK,
+      numberOfReps,
+      weight,
+      createdAt: timestamp,
+    };
+    await client.send(
+      new PutCommand({
+        TableName: tableName,
+        Item: newSet,
+      })
+    );
+    return {
+      statusCode: 201,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+      },
+      body: JSON.stringify({
+        message: "Created new set",
+        set: newSet,
       }),
     };
   },
