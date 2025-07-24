@@ -83,7 +83,7 @@ export class MvpServerlessTypescriptStack extends Stack {
 
     httpApi.addRoutes({
       path: "/exercises",
-      methods: [HttpMethod.GET, HttpMethod.POST],
+      methods: [HttpMethod.GET, HttpMethod.POST, HttpMethod.DELETE],
       integration: lambdaIntegration,
     });
 
