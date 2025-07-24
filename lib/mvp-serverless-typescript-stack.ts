@@ -30,6 +30,20 @@ export class MvpServerlessTypescriptStack extends Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    table.addGlobalSecondaryIndex({
+      indexName: "GSI2",
+      partitionKey: { name: "targetDay", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "pk", type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    table.addGlobalSecondaryIndex({
+      indexName: "GSI3",
+      partitionKey: { name: "targetDay", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     const fn = new lambda.Function(this, "CrudLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       code: lambda.Code.fromAsset(path.join(__dirname, "../src/dist")),
@@ -86,7 +100,12 @@ export class MvpServerlessTypescriptStack extends Stack {
 
     httpApi.addRoutes({
       path: "/workouts",
-      methods: [HttpMethod.GET, HttpMethod.POST, HttpMethod.DELETE],
+      methods: [
+        HttpMethod.GET,
+        HttpMethod.POST,
+        HttpMethod.DELETE,
+        HttpMethod.PATCH,
+      ],
       integration: lambdaIntegration,
     });
 

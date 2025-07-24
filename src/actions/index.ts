@@ -229,11 +229,12 @@ const routeHandlers: Record<string, RouteHandler> = {
     };
   },
 
-  "GET /workouts/filter": async (event) => {
-    const pk = event.queryStringParameters?.pk;
-    const targetDay = event.queryStringParameters?.targetDay;
+  "PATCH /workouts": async (event) => {
+    const inputData = JSON.parse(event.body);
 
-    if (!pk) {
+    const { PK, targetDay } = inputData;
+
+    if (!PK) {
       return {
         statusCode: 400,
         body: JSON.stringify({ error: "Missing 'pk' query parameter" }),
@@ -243,10 +244,11 @@ const routeHandlers: Record<string, RouteHandler> = {
     const result = await client.send(
       new QueryCommand({
         TableName: tableName,
-        IndexName: "GSI1",
-        KeyConditionExpression: "targetDay = :targetDay",
+        IndexName: "GSI3",
+        KeyConditionExpression: "targetDay = :targetDay AND PK = :PK",
         ExpressionAttributeValues: {
           ":targetDay": { S: targetDay },
+          ":PK": { S: PK },
         },
       })
     );
