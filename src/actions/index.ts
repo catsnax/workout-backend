@@ -229,6 +229,40 @@ const routeHandlers: Record<string, RouteHandler> = {
     };
   },
 
+  "GET /workouts/filter": async (event) => {
+    const pk = event.queryStringParameters?.pk;
+    const targetDay = event.queryStringParameters?.targetDay;
+
+    if (!pk) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Missing 'pk' query parameter" }),
+      };
+    }
+
+    const result = await client.send(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: "GSI1",
+        KeyConditionExpression: "targetDay = :targetDay",
+        ExpressionAttributeValues: {
+          ":targetDay": { S: targetDay },
+        },
+      })
+    );
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Credentials": "true",
+      },
+      body: JSON.stringify(result.Items ?? []),
+    };
+  },
+
   "GET /exercises": async (event) => {
     const pk = event.queryStringParameters?.pk;
 
