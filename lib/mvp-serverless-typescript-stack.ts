@@ -44,7 +44,10 @@ export class MvpServerlessTypescriptStack extends Stack {
           CorsHttpMethod.DELETE,
           CorsHttpMethod.OPTIONS,
         ],
-        allowOrigins: ["http://localhost:5173"],
+        allowOrigins: [
+          "http://localhost:5173",
+          "http://provincial-workout-app.s3-website-us-east-1.amazonaws.com",
+        ],
         allowCredentials: true,
       },
     });
@@ -77,7 +80,7 @@ export class MvpServerlessTypescriptStack extends Stack {
 
     httpApi.addRoutes({
       path: "/workouts",
-      methods: [HttpMethod.GET, HttpMethod.POST],
+      methods: [HttpMethod.GET, HttpMethod.POST, HttpMethod.DELETE],
       integration: lambdaIntegration,
     });
 

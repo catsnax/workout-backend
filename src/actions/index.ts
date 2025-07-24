@@ -118,9 +118,8 @@ const routeHandlers: Record<string, RouteHandler> = {
     return {
       statusCode: 200,
       headers: {
-        "Access-Control-Allow-Origin": "http://localhost:5173",
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Credentials": "true",
         "Set-Cookie": `PK=USER#${username}; HttpOnly; SameSite=None; Path=/`,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
       },
@@ -155,7 +154,7 @@ const routeHandlers: Record<string, RouteHandler> = {
     return {
       statusCode: 200,
       headers: {
-        "Access-Control-Allow-Origin": "http://localhost:5173",
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Credentials": "true",
@@ -209,6 +208,27 @@ const routeHandlers: Record<string, RouteHandler> = {
     };
   },
 
+  "DELETE /workouts": async (event) => {
+    const tableName = "workoutTable";
+    const inputData = JSON.parse(event.body);
+    const { pk, sk } = inputData;
+
+    await client.send(
+      new DeleteCommand({
+        TableName: tableName,
+        Key: {
+          PK: pk,
+          SK: sk,
+        },
+      })
+    );
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ message: `Deleted item ${pk}, ${sk}` }),
+    };
+  },
+
   "GET /exercises": async (event) => {
     const pk = event.queryStringParameters?.pk;
 
@@ -233,7 +253,7 @@ const routeHandlers: Record<string, RouteHandler> = {
     return {
       statusCode: 200,
       headers: {
-        "Access-Control-Allow-Origin": "http://localhost:5173",
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Credentials": "true",
@@ -330,7 +350,7 @@ const routeHandlers: Record<string, RouteHandler> = {
     return {
       statusCode: 200,
       headers: {
-        "Access-Control-Allow-Origin": "http://localhost:5173",
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Credentials": "true",
