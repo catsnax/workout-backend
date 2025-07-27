@@ -26,32 +26,43 @@ export class MvpServerlessTypescriptStack extends Stack {
 
     table.addGlobalSecondaryIndex({
       indexName: "GSI1",
-      partitionKey: { name: "targetDay", type: dynamodb.AttributeType.STRING },
+      partitionKey: { name: "GSI1PK", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "GSI1SK", type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
-    table.addGlobalSecondaryIndex({
-      indexName: "GSI2",
-      partitionKey: { name: "targetDay", type: dynamodb.AttributeType.STRING },
-      sortKey: { name: "pk", type: dynamodb.AttributeType.STRING },
-      projectionType: dynamodb.ProjectionType.ALL,
-    });
-
-    table.addGlobalSecondaryIndex({
-      indexName: "GSI3",
-      partitionKey: { name: "targetDay", type: dynamodb.AttributeType.STRING },
-      sortKey: { name: "PK", type: dynamodb.AttributeType.STRING },
-      projectionType: dynamodb.ProjectionType.ALL,
-    });
-
-    const fn = new lambda.Function(this, "CrudLambda", {
+    const usersFn = new lambda.Function(this, "UserLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
       code: lambda.Code.fromAsset(path.join(__dirname, "../src/dist")),
       handler: "index.handler",
-      functionName: "workout-function",
+      functionName: "user-function",
     });
 
-    table.grantReadWriteData(fn);
+    const workoutsFn = new lambda.Function(this, "WorkoutLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      code: lambda.Code.fromAsset(path.join(__dirname, "../src/dist")),
+      handler: "index.handler",
+      functionName: "workouts-function",
+    });
+
+    const exercisesFn = new lambda.Function(this, "ExerciseLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      code: lambda.Code.fromAsset(path.join(__dirname, "../src/dist")),
+      handler: "index.handler",
+      functionName: "exercise-function",
+    });
+
+    const setsFn = new lambda.Function(this, "SetLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      code: lambda.Code.fromAsset(path.join(__dirname, "../src/dist")),
+      handler: "index.handler",
+      functionName: "sets-function",
+    });
+
+    table.grantReadWriteData(usersFn);
+    table.grantReadWriteData(workoutsFn);
+    table.grantReadWriteData(exercisesFn);
+    table.grantReadWriteData(setsFn);
 
     const httpApi = new HttpApi(this, "CrudHttpApi", {
       apiName: "workoutApi",
@@ -72,30 +83,47 @@ export class MvpServerlessTypescriptStack extends Stack {
       },
     });
 
-    const lambdaIntegration = new HttpLambdaIntegration("CrudIntegration", fn);
+    const userLambdaIntegration = new HttpLambdaIntegration(
+      "CrudIntegration",
+      usersFn
+    );
+    const workoutLambdaIntegration = new HttpLambdaIntegration(
+      "CrudIntegration",
+      workoutsFn
+    );
+
+    const exerciseLambdaIntegration = new HttpLambdaIntegration(
+      "CrudIntegration",
+      exercisesFn
+    );
+
+    const setLambdaIntegration = new HttpLambdaIntegration(
+      "CrudIntegration",
+      setsFn
+    );
 
     httpApi.addRoutes({
       path: "/items",
       methods: [HttpMethod.GET, HttpMethod.POST],
-      integration: lambdaIntegration,
+      integration: userLambdaIntegration,
     });
 
     httpApi.addRoutes({
       path: "/items/{id}",
       methods: [HttpMethod.GET, HttpMethod.DELETE, HttpMethod.PATCH],
-      integration: lambdaIntegration,
+      integration: userLambdaIntegration,
     });
 
     httpApi.addRoutes({
       path: "/users",
       methods: [HttpMethod.GET, HttpMethod.POST],
-      integration: lambdaIntegration,
+      integration: userLambdaIntegration,
     });
 
     httpApi.addRoutes({
       path: "/login",
       methods: [HttpMethod.POST],
-      integration: lambdaIntegration,
+      integration: userLambdaIntegration,
     });
 
     httpApi.addRoutes({
@@ -106,25 +134,25 @@ export class MvpServerlessTypescriptStack extends Stack {
         HttpMethod.DELETE,
         HttpMethod.PATCH,
       ],
-      integration: lambdaIntegration,
+      integration: workoutLambdaIntegration,
     });
 
     httpApi.addRoutes({
       path: "/workouts/filter",
       methods: [HttpMethod.GET],
-      integration: lambdaIntegration,
+      integration: workoutLambdaIntegration,
     });
 
     httpApi.addRoutes({
       path: "/exercises",
       methods: [HttpMethod.GET, HttpMethod.POST, HttpMethod.DELETE],
-      integration: lambdaIntegration,
+      integration: exerciseLambdaIntegration,
     });
 
     httpApi.addRoutes({
       path: "/sets",
       methods: [HttpMethod.GET, HttpMethod.POST, HttpMethod.PATCH],
-      integration: lambdaIntegration,
+      integration: setLambdaIntegration,
     });
 
     new CfnOutput(this, "ApiUrl", {

@@ -244,11 +244,11 @@ const routeHandlers: Record<string, RouteHandler> = {
     const result = await client.send(
       new QueryCommand({
         TableName: tableName,
-        IndexName: "GSI3",
-        KeyConditionExpression: "targetDay = :targetDay AND PK = :PK",
+        IndexName: "GSI1",
+        KeyConditionExpression: "GSI1PK = :PK AND GSI1SK = :targetDay",
         ExpressionAttributeValues: {
-          ":targetDay": { S: targetDay },
           ":PK": { S: PK },
+          ":targetDay": { S: targetDay },
         },
       })
     );
