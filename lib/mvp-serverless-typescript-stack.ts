@@ -4,6 +4,8 @@ import { Construct } from "constructs";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
+
 import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
 import {
   HttpApi,
@@ -15,6 +17,56 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3Deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
+
+function addCorsOptions(resource: apigateway.IResource) {
+  try {
+    resource.addMethod(
+      "OPTIONS",
+      new apigateway.MockIntegration({
+        integrationResponses: [
+          {
+            statusCode: "200",
+            responseParameters: {
+              "method.response.header.Access-Control-Allow-Headers":
+                "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'",
+              "method.response.header.Access-Control-Allow-Origin": "'*'",
+              "method.response.header.Access-Control-Allow-Methods":
+                "'GET,POST,OPTIONS,PATCH,DELETE'",
+            },
+            responseTemplates: {
+              "application/json": "",
+            },
+          },
+        ],
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          "application/json": '{"statusCode": 200}',
+        },
+      }),
+      {
+        methodResponses: [
+          {
+            statusCode: "200",
+            responseParameters: {
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+            },
+          },
+        ],
+      }
+    );
+  } catch (e) {
+    if (
+      e instanceof Error &&
+      e.message.includes("There is already a Construct with name 'OPTIONS'")
+    ) {
+      // silently skip duplicate OPTIONS error
+    } else {
+      throw e;
+    }
+  }
+}
 
 export class MvpServerlessTypescriptStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -93,17 +145,11 @@ export class MvpServerlessTypescriptStack extends Stack {
     table.grantReadWriteData(exercisesFn);
     table.grantReadWriteData(setsFn);
 
-    const httpApi = new HttpApi(this, "CrudHttpApi", {
-      apiName: "workoutApi",
-      corsPreflight: {
+    const restApi = new apigateway.RestApi(this, "CrudRestApi", {
+      restApiName: "workoutApi",
+      defaultCorsPreflightOptions: {
         allowHeaders: ["Content-Type"],
-        allowMethods: [
-          CorsHttpMethod.GET,
-          CorsHttpMethod.POST,
-          CorsHttpMethod.PATCH,
-          CorsHttpMethod.DELETE,
-          CorsHttpMethod.OPTIONS,
-        ],
+        allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allowOrigins: [
           "http://localhost:5173",
           "http://provincial-workout-app.s3-website-us-east-1.amazonaws.com",
@@ -112,82 +158,72 @@ export class MvpServerlessTypescriptStack extends Stack {
       },
     });
 
-    const userLambdaIntegration = new HttpLambdaIntegration(
-      "CrudIntegration",
-      usersFn
-    );
-    const workoutLambdaIntegration = new HttpLambdaIntegration(
-      "CrudIntegration",
-      workoutsFn
-    );
+    const usersResource = restApi.root.addResource("users");
 
-    const exerciseLambdaIntegration = new HttpLambdaIntegration(
-      "CrudIntegration",
-      exercisesFn
-    );
+    usersResource.addMethod("GET", new apigateway.LambdaIntegration(usersFn));
+    usersResource.addMethod("POST", new apigateway.LambdaIntegration(usersFn));
 
-    const setLambdaIntegration = new HttpLambdaIntegration(
-      "CrudIntegration",
-      setsFn
-    );
+    const loginResource = restApi.root.addResource("login");
 
-    httpApi.addRoutes({
-      path: "/items",
-      methods: [HttpMethod.GET, HttpMethod.POST],
-      integration: userLambdaIntegration,
-    });
-
-    httpApi.addRoutes({
-      path: "/items/{id}",
-      methods: [HttpMethod.GET, HttpMethod.DELETE, HttpMethod.PATCH],
-      integration: userLambdaIntegration,
-    });
-
-    httpApi.addRoutes({
-      path: "/users",
-      methods: [HttpMethod.GET, HttpMethod.POST],
-      integration: userLambdaIntegration,
-    });
-
-    httpApi.addRoutes({
-      path: "/login",
-      methods: [HttpMethod.POST],
-      integration: userLambdaIntegration,
-    });
-
-    httpApi.addRoutes({
-      path: "/workouts",
-      methods: [
-        HttpMethod.GET,
-        HttpMethod.POST,
-        HttpMethod.DELETE,
-        HttpMethod.PATCH,
+    loginResource.addMethod("POST", new apigateway.LambdaIntegration(usersFn), {
+      methodResponses: [
+        {
+          statusCode: "200",
+          responseParameters: {
+            "method.response.header.Access-Control-Allow-Origin": true,
+            "method.response.header.Access-Control-Allow-Headers": true,
+            "method.response.header.Access-Control-Allow-Methods": true,
+          },
+        },
       ],
-      integration: workoutLambdaIntegration,
     });
 
-    httpApi.addRoutes({
-      path: "/workouts/filter",
-      methods: [HttpMethod.GET],
-      integration: workoutLambdaIntegration,
-    });
+    addCorsOptions(loginResource);
 
-    httpApi.addRoutes({
-      path: "/exercises",
-      methods: [HttpMethod.GET, HttpMethod.POST, HttpMethod.DELETE],
-      integration: exerciseLambdaIntegration,
-    });
+    const workoutResource = restApi.root.addResource("workouts");
 
-    httpApi.addRoutes({
-      path: "/sets",
-      methods: [HttpMethod.GET, HttpMethod.POST, HttpMethod.PATCH],
-      integration: setLambdaIntegration,
-    });
+    workoutResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(workoutsFn)
+    );
+    workoutResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(workoutsFn)
+    );
+    workoutResource.addMethod(
+      "PATCH",
+      new apigateway.LambdaIntegration(workoutsFn)
+    );
+    workoutResource.addMethod(
+      "DELETE",
+      new apigateway.LambdaIntegration(workoutsFn)
+    );
 
-    new CfnOutput(this, "ApiUrl", {
-      exportName: "APIGatewayEndpoint",
-      value: httpApi.apiEndpoint,
-      description: "The endpoint url of the API Gateway",
-    });
+    const filterResource = workoutResource.addResource("filter");
+    filterResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(workoutsFn)
+    );
+
+    const exerciseResource = restApi.root.addResource("exercises");
+
+    exerciseResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(exercisesFn)
+    );
+    exerciseResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(exercisesFn)
+    );
+    exerciseResource.addMethod(
+      "DELETE",
+      new apigateway.LambdaIntegration(exercisesFn)
+    );
+
+    const setResource = restApi.root.addResource("sets");
+
+    setResource.addMethod("GET", new apigateway.LambdaIntegration(setsFn));
+    setResource.addMethod("POST", new apigateway.LambdaIntegration(setsFn));
+    setResource.addMethod("PATCH", new apigateway.LambdaIntegration(setsFn));
   }
 }

@@ -1,6 +1,8 @@
 // src/actions/index.ts
 
-import { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { RestApi } from "aws-cdk-lib/aws-apigateway";
+import { APIGatewayProxyHandler } from "aws-lambda";
+
 import { StatusCodes, getReasonPhrase } from "http-status-codes";
 import {
   DynamoDBClient,
@@ -506,156 +508,6 @@ const routeHandlers: Record<string, RouteHandler> = {
       }),
     };
   },
-
-  "GET /items": async () => {
-    const scanResult = await client.send(
-      new ScanCommand({ TableName: tableName })
-    );
-    return scanResult.Items ?? [];
-  },
-
-  "GET /items/:id": async (_event, id) => {
-    const getResult = await client.send(
-      new GetCommand({
-        TableName: tableName,
-        Key: {
-          PK: `TODO#${id}`,
-          SK: `USER#${id}`,
-        },
-      })
-    );
-    return getResult.Item ?? {};
-  },
-
-  "POST /items": async (event) => {
-    if (!event.body) throw new Error("Missing request body");
-
-    const tableName = "todoTable";
-    const timestamp = new Date().toISOString();
-    const inputData = JSON.parse(event.body);
-
-    // Extract relevant fields
-    const {
-      priority,
-      description,
-      createdAt: ignore1,
-      editedAt: ignore2,
-      PK: ignore3,
-      SK: ignore4,
-      data,
-      ...rest
-    } = inputData;
-
-    const generatedId = uuidv4();
-
-    const newItem = {
-      PK: `TODO#${generatedId}`,
-      SK: `USER#${generatedId}`,
-      priority: priority ?? 1,
-      description: description ?? "",
-      createdAt: timestamp,
-      editedAt: timestamp,
-      data: { ...rest, ...(data ?? {}) },
-    };
-
-    await client.send(
-      new PutCommand({
-        TableName: tableName,
-        Item: newItem,
-      })
-    );
-
-    return {
-      statusCode: 201,
-      body: JSON.stringify({
-        message: "Created new item",
-        generatedId,
-        item: newItem,
-      }),
-    };
-  },
-
-  "PATCH /items/:id": async (event, id) => {
-    if (!event.body) throw new Error("Missing request body");
-
-    const tableName = "todoTable";
-    const timestamp = new Date().toISOString();
-    const updateData = JSON.parse(event.body);
-
-    // Step 1: Fetch existing item
-    const existing = await client.send(
-      new GetCommand({
-        TableName: tableName,
-        Key: {
-          PK: `TODO#${id}`,
-          SK: `USER#${id}`,
-        },
-      })
-    );
-
-    if (!existing.Item) {
-      return {
-        statusCode: StatusCodes.NOT_FOUND,
-        body: JSON.stringify({
-          message: `Not Found item ${id}`,
-        }),
-      };
-    }
-
-    const { PK, SK, createdAt } = existing.Item;
-
-    // Step 2: Extract known and custom fields
-    const {
-      priority,
-      description,
-      editedAt,
-      createdAt: ignore1,
-      PK: ignore2,
-      SK: ignore3,
-      data,
-      ...rest
-    } = updateData;
-
-    // Step 3: Build final updated item
-    const updatedItem = {
-      PK,
-      SK,
-      priority: priority ?? 1,
-      description: description ?? "",
-      createdAt,
-      editedAt: timestamp,
-      data: { ...rest, ...(data ?? {}) },
-    };
-
-    // Step 4: Put updated item back
-    await client.send(
-      new PutCommand({
-        TableName: tableName,
-        Item: updatedItem,
-      })
-    );
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        message: `Updated item ${id}`,
-        updated: updatedItem,
-      }),
-    };
-  },
-
-  "DELETE /items/:id": async (_event, id) => {
-    await client.send(
-      new DeleteCommand({
-        TableName: tableName,
-        Key: {
-          PK: `TODO#${id}`,
-          SK: `USER#${id}`,
-        },
-      })
-    );
-    return { message: `Deleted item ${id}`, id };
-  },
 };
 
 // Pattern matcher
@@ -675,13 +527,13 @@ const matchRoute = (method: string, path: string) => {
   return null;
 };
 
-export const handler: APIGatewayProxyHandlerV2 = async (event) => {
+export const handler: APIGatewayProxyHandler = async (event) => {
   let statusCode = StatusCodes.OK;
   let body: string | object = "";
 
   try {
-    const method = event.requestContext.http.method;
-    const path = event.rawPath;
+    const method = event.httpMethod;
+    const path = event.path;
 
     const matched = matchRoute(method, path);
     if (!matched) throw new Error(`Unsupported route: ${method} ${path}`);
@@ -694,7 +546,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   return {
     statusCode,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Origin":
+        "http://provincial-workout-app.s3-website-us-east-1.amazonaws.com",
+      "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PATCH,DELETE",
+      "Access-Control-Allow-Credentials": "true",
+    },
     body: typeof body === "string" ? body : JSON.stringify(body),
   };
 };
