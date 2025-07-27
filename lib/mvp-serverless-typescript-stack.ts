@@ -11,10 +11,39 @@ import {
   HttpMethod,
 } from "@aws-cdk/aws-apigatewayv2-alpha";
 import path from "path";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as s3Deploy from "aws-cdk-lib/aws-s3-deployment";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 
 export class MvpServerlessTypescriptStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+
+    const siteBucket = new s3.Bucket(this, "FrontendBucket", {
+      bucketName: "provincial-workout-app",
+      websiteIndexDocument: "index.html",
+      websiteErrorDocument: "index.html",
+      publicReadAccess: true,
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: false,
+        blockPublicPolicy: false,
+        ignorePublicAcls: false,
+        restrictPublicBuckets: false,
+      }),
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    new s3Deploy.BucketDeployment(this, "DeployFrontend", {
+      sources: [s3Deploy.Source.asset("../workout-frontend/dist")],
+      destinationBucket: siteBucket,
+    });
+
+    new CfnOutput(this, "WebsiteURL", {
+      value: siteBucket.bucketWebsiteUrl,
+      description: "The static website URL hosted on S3",
+    });
 
     // SINGLE TABLE DESIGN: Use partition key (PK) and sort key (SK)
     const table = new dynamodb.Table(this, "AppDataTable", {
